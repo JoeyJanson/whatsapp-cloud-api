@@ -202,11 +202,10 @@ final class NotificationFactoryTest extends TestCase
                           "timestamp": "1669233778",
                           "type": "image",
                           "image": {
-                            "caption": "CAPTION",
+                            "caption": "CAPTION_TEXT",
                             "mime_type": "image/jpeg",
                             "sha256": "IMAGE_HASH",
-                            "id": "IMAGE_ID",
-                            "caption": "CAPTION_TEXT"
+                            "id": "IMAGE_ID"
                           }
                         }]
                   },
@@ -219,8 +218,57 @@ final class NotificationFactoryTest extends TestCase
 
         $this->assertInstanceOf(Notification\Media::class, $notification);
         $this->assertEquals('IMAGE_ID', $notification->imageId());
+        $this->assertEquals('IMAGE_HASH', $notification->sha256());
         $this->assertEquals('image/jpeg', $notification->mimeType());
         $this->assertEquals('CAPTION_TEXT', $notification->caption());
+    }
+
+    public function test_build_from_payload_can_build_an_document_notification()
+    {
+        $payload = json_decode('{
+            "object": "whatsapp_business_account",
+            "entry": [{
+              "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+              "changes": [{
+                  "value": {
+                      "messaging_product": "whatsapp",
+                      "metadata": {
+                          "display_phone_number": "PHONE_NUMBER",
+                          "phone_number_id": "PHONE_NUMBER_ID"
+                      },
+                      "contacts": [{
+                          "profile": {
+                            "name": "NAME"
+                          },
+                          "wa_id": "WHATSAPP_ID"
+                        }],
+                      "messages": [{
+                          "from": "PHONE_NUMBER",
+                          "id": "wamid.ID",
+                          "timestamp": "1669233778",
+                          "type": "document",
+                          "document": {
+                            "caption": "CAPTION_TEXT",
+                            "filename": "FILENAME",
+                            "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "sha256": "DOCUMENT_HASH",
+                            "id": "IMAGE_ID"
+                          }
+                        }]
+                  },
+                  "field": "messages"
+                }]
+            }]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\Media::class, $notification);
+        $this->assertEquals('IMAGE_ID', $notification->imageId());
+        $this->assertEquals('DOCUMENT_HASH', $notification->sha256());
+        $this->assertEquals('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $notification->mimeType());
+        $this->assertEquals('CAPTION_TEXT', $notification->caption());
+        $this->assertEquals('FILENAME', $notification->filename());
     }
 
     public function test_build_from_payload_can_build_a_sticker_notification()
@@ -254,7 +302,7 @@ final class NotificationFactoryTest extends TestCase
                         "type": "sticker",
                         "sticker": {
                           "mime_type": "image/webp",
-                          "sha256": "HASH",
+                          "sha256": "STICKER_HASH",
                           "id": "STICKER_ID"
                         }
                       }
@@ -271,6 +319,7 @@ final class NotificationFactoryTest extends TestCase
 
         $this->assertInstanceOf(Notification\Media::class, $notification);
         $this->assertEquals('STICKER_ID', $notification->imageId());
+        $this->assertEquals('STICKER_HASH', $notification->sha256());
         $this->assertEquals('image/webp', $notification->mimeType());
     }
 
@@ -844,6 +893,57 @@ final class NotificationFactoryTest extends TestCase
         $this->assertNull($notification->conversationExpiresAt());
     }
 
+    public function test_build_from_payload_can_build_a_status_with_pricing_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [{
+            "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+            "changes": [{
+              "value": {
+                "messaging_product": "whatsapp",
+                "metadata": {
+                  "display_phone_number": "PHONE_NUMBER",
+                  "phone_number_id": "PHONE_NUMBER_ID"
+                },
+                "statuses": [{
+                  "id": "wamid.ID",
+                  "recipient_id": "CUSTOMER_PHONE_NUMBER",
+                  "status": "delivered",
+                  "timestamp": "1690327464",
+                  "conversation": {
+                    "id": "CONVERSATION_ID",
+                    "origin": {
+                      "type": "marketing"
+                    }
+                  },
+                  "pricing": {
+                    "billable": true,
+                    "pricing_model": "CBP",
+                    "category": "marketing"
+                  }
+                }]
+              },
+              "field": "messages"
+            }]
+          }]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\StatusNotification::class, $notification);
+        $this->assertEquals('wamid.ID', $notification->id());
+        $this->assertEquals('CUSTOMER_PHONE_NUMBER', $notification->customerId());
+        $this->assertEquals('marketing', $notification->pricingCategory());
+        $this->assertEquals('CBP', $notification->pricingModel());
+        $this->assertTrue($notification->isBillable());
+        $this->assertEquals('CONVERSATION_ID', $notification->conversationId());
+        $this->assertEquals('delivered', $notification->status());
+        $this->assertFalse($notification->isMessageRead());
+        $this->assertTrue($notification->isMessageDelivered());
+        $this->assertTrue($notification->isMessageSent());
+    }
+
     public function test_build_from_payload_can_build_a_status_notification_with_errors()
     {
         $payload = json_decode('{
@@ -892,6 +992,53 @@ final class NotificationFactoryTest extends TestCase
         $this->assertEquals('ERROR_TITLE', $notification->errorTitle());
     }
 
+    public function test_build_from_payload_can_build_a_forwarded_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [{
+              "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+              "changes": [{
+                  "value": {
+                      "messaging_product": "whatsapp",
+                      "metadata": {
+                          "display_phone_number": "PHONE_NUMBER",
+                          "phone_number_id": "PHONE_NUMBER_ID"
+                      },
+                      "contacts": [{
+                          "profile": {
+                            "name": "NAME"
+                          },
+                          "wa_id": "WHATSAPP_ID"
+                        }],
+                      "messages": [{
+                          "context": {
+                            "forwarded": true
+                          },
+                          "from": "16315551234",
+                          "id": "wamid.ID",
+                          "timestamp": 1669233778,
+                          "type": "text",
+                          "text": {
+                            "body": "MESSAGE_BODY"
+                          }
+                        }]
+                  },
+                  "field": "messages"
+                }]
+            }]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertNull($notification->replyingToMessageId());
+        $this->assertEquals('PHONE_NUMBER_ID', $notification->businessPhoneNumberId());
+        $this->assertEquals('PHONE_NUMBER', $notification->businessPhoneNumber());
+        $this->assertTrue($notification->isForwarded());
+        $this->assertEquals('WHATSAPP_ID', $notification->customer()->id());
+        $this->assertEquals('NAME', $notification->customer()->name());
+    }
+
     public function test_build_from_payload_return_null_when_payload_is_empty()
     {
         $notification = $this->notification_factory->buildFromPayload([]);
@@ -901,5 +1048,237 @@ final class NotificationFactoryTest extends TestCase
         $notification = $this->notification_factory->buildFromPayload(['entry' => []]);
 
         $this->assertNull($notification);
+    }
+
+    public function test_build_from_payload_can_build_an_authentication_status_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [
+            {
+              "id": "108536708899139",
+              "changes": [
+                {
+                  "value": {
+                    "messaging_product": "whatsapp",
+                    "metadata": {
+                      "display_phone_number": "CUSTOMER_PHONE_NUMBER",
+                      "phone_number_id": "CUSTOMER_PHONE_NUMBER"
+                    },
+                    "statuses": [
+                      {
+                        "id": "wamid.ID",
+                        "status": "delivered",
+                        "timestamp": "1685626673",
+                        "recipient_id": "CUSTOMER_PHONE_NUMBER",
+                        "conversation": {
+                          "id": "CONVERSATION_ID",
+                          "origin": {
+                            "type": "authentication"
+                          }
+                        },
+                        "pricing": {
+                          "billable": true,
+                          "pricing_model": "CBP",
+                          "category": "authentication"
+                        }
+                      }
+                    ]
+                  },
+                  "field": "messages"
+                }
+              ]
+            }
+          ]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\StatusNotification::class, $notification);
+        $this->assertEquals('wamid.ID', $notification->id());
+        $this->assertEquals('CUSTOMER_PHONE_NUMBER', $notification->customerId());
+        $this->assertEquals('CONVERSATION_ID', $notification->conversationId());
+        $this->assertFalse($notification->isBusinessInitiatedConversation());
+        $this->assertFalse($notification->isCustomerInitiatedConversation());
+        $this->assertFalse($notification->isReferralInitiatedConversation());
+        $this->assertEquals('authentication', $notification->conversationType());
+        $this->assertEquals('delivered', $notification->status());
+        $this->assertFalse($notification->isMessageRead());
+        $this->assertTrue($notification->isMessageDelivered());
+        $this->assertTrue($notification->isMessageSent());
+    }
+
+    public function test_build_from_payload_can_build_a_marketing_status_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [
+            {
+              "id": "108536708899139",
+              "changes": [
+                {
+                  "value": {
+                    "messaging_product": "whatsapp",
+                    "metadata": {
+                      "display_phone_number": "CUSTOMER_PHONE_NUMBER",
+                      "phone_number_id": "CUSTOMER_PHONE_NUMBER"
+                    },
+                    "statuses": [
+                      {
+                        "id": "wamid.ID",
+                        "status": "delivered",
+                        "timestamp": "1685626673",
+                        "recipient_id": "CUSTOMER_PHONE_NUMBER",
+                        "conversation": {
+                          "id": "CONVERSATION_ID",
+                          "origin": {
+                            "type": "marketing"
+                          }
+                        },
+                        "pricing": {
+                          "billable": true,
+                          "pricing_model": "CBP",
+                          "category": "marketing"
+                        }
+                      }
+                    ]
+                  },
+                  "field": "messages"
+                }
+              ]
+            }
+          ]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\StatusNotification::class, $notification);
+        $this->assertEquals('wamid.ID', $notification->id());
+        $this->assertEquals('CUSTOMER_PHONE_NUMBER', $notification->customerId());
+        $this->assertEquals('CONVERSATION_ID', $notification->conversationId());
+        $this->assertFalse($notification->isBusinessInitiatedConversation());
+        $this->assertFalse($notification->isCustomerInitiatedConversation());
+        $this->assertFalse($notification->isReferralInitiatedConversation());
+        $this->assertEquals('marketing', $notification->conversationType());
+        $this->assertEquals('delivered', $notification->status());
+        $this->assertFalse($notification->isMessageRead());
+        $this->assertTrue($notification->isMessageDelivered());
+        $this->assertTrue($notification->isMessageSent());
+    }
+
+    public function test_build_from_payload_can_build_an_utility_status_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [
+            {
+              "id": "108536708899139",
+              "changes": [
+                {
+                  "value": {
+                    "messaging_product": "whatsapp",
+                    "metadata": {
+                      "display_phone_number": "CUSTOMER_PHONE_NUMBER",
+                      "phone_number_id": "CUSTOMER_PHONE_NUMBER"
+                    },
+                    "statuses": [
+                      {
+                        "id": "wamid.ID",
+                        "status": "delivered",
+                        "timestamp": "1685626673",
+                        "recipient_id": "CUSTOMER_PHONE_NUMBER",
+                        "conversation": {
+                          "id": "CONVERSATION_ID",
+                          "origin": {
+                            "type": "utility"
+                          }
+                        },
+                        "pricing": {
+                          "billable": true,
+                          "pricing_model": "CBP",
+                          "category": "utility"
+                        }
+                      }
+                    ]
+                  },
+                  "field": "messages"
+                }
+              ]
+            }
+          ]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\StatusNotification::class, $notification);
+        $this->assertEquals('wamid.ID', $notification->id());
+        $this->assertEquals('CUSTOMER_PHONE_NUMBER', $notification->customerId());
+        $this->assertEquals('CONVERSATION_ID', $notification->conversationId());
+        $this->assertFalse($notification->isBusinessInitiatedConversation());
+        $this->assertFalse($notification->isCustomerInitiatedConversation());
+        $this->assertFalse($notification->isReferralInitiatedConversation());
+        $this->assertEquals('utility', $notification->conversationType());
+        $this->assertEquals('delivered', $notification->status());
+        $this->assertFalse($notification->isMessageRead());
+        $this->assertTrue($notification->isMessageDelivered());
+        $this->assertTrue($notification->isMessageSent());
+    }
+
+    public function test_build_from_payload_can_build_a_service_status_notification()
+    {
+        $payload = json_decode('{
+          "object": "whatsapp_business_account",
+          "entry": [
+            {
+              "id": "108536708899139",
+              "changes": [
+                {
+                  "value": {
+                    "messaging_product": "whatsapp",
+                    "metadata": {
+                      "display_phone_number": "CUSTOMER_PHONE_NUMBER",
+                      "phone_number_id": "CUSTOMER_PHONE_NUMBER"
+                    },
+                    "statuses": [
+                      {
+                        "id": "wamid.ID",
+                        "status": "delivered",
+                        "timestamp": "1685626673",
+                        "recipient_id": "CUSTOMER_PHONE_NUMBER",
+                        "conversation": {
+                          "id": "CONVERSATION_ID",
+                          "origin": {
+                            "type": "service"
+                          }
+                        },
+                        "pricing": {
+                          "billable": true,
+                          "pricing_model": "CBP",
+                          "category": "service"
+                        }
+                      }
+                    ]
+                  },
+                  "field": "messages"
+                }
+              ]
+            }
+          ]
+        }', true);
+
+        $notification = $this->notification_factory->buildFromPayload($payload);
+
+        $this->assertInstanceOf(Notification\StatusNotification::class, $notification);
+        $this->assertEquals('wamid.ID', $notification->id());
+        $this->assertEquals('CUSTOMER_PHONE_NUMBER', $notification->customerId());
+        $this->assertEquals('CONVERSATION_ID', $notification->conversationId());
+        $this->assertFalse($notification->isBusinessInitiatedConversation());
+        $this->assertFalse($notification->isCustomerInitiatedConversation());
+        $this->assertFalse($notification->isReferralInitiatedConversation());
+        $this->assertEquals('service', $notification->conversationType());
+        $this->assertEquals('delivered', $notification->status());
+        $this->assertFalse($notification->isMessageRead());
+        $this->assertTrue($notification->isMessageDelivered());
+        $this->assertTrue($notification->isMessageSent());
     }
 }

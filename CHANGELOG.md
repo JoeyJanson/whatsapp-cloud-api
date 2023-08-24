@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.1.0 - 2023-08-12
+
+### What's Changed
+
+- Media filename and sha256 are now available on Webhook notification Media object. See PR #126
+
+## 2.0.5 - 2023-06-24
+
+### What's Changed
+
+- Fix message notification initialization when context is empty. See PR #114
+
+## 2.0.4 - 2023-06-01
+
+### What's Changed
+
+- Fix Webhook error with new base pricing category conversations
+
+## 2.0.3 - 2023-03-29
+
+### What's Changed
+
+- Fix forwaded messages without ID in the message context. Issue https://github.com/netflie/whatsapp-cloud-api/issues/94
+
 ## 2.0.2 - 2023-02-06
 
 ### What's Changed
